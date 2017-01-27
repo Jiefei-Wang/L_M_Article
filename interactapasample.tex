@@ -1,0 +1,896 @@
+% interactapasample.tex
+% v1.02 - september 2016
+
+\documentclass[]{interact}
+
+\usepackage{epstopdf}% To incorporate .eps illustrations using PDFLaTeX, etc.
+\usepackage{subfigure}% support for small, `sub' figures and tables
+
+\usepackage[longnamesfirst,sort]{natbib}% Citation support using natbib.sty
+\bibpunct[, ]{(}{)}{;}{a}{,}{,}% Citation support using natbib.sty
+\renewcommand\bibfont{\fontsize{10}{12}\selectfont}% To set the list of references in 10 point font using natbib.sty
+
+%\usepackage[natbibapa,nodoi]{apacite}% Citation support using apacite.sty. Commands using natbib.sty MUsT be deactivated first!
+%\setlength\bibhang{12pt}% To set the indentation in the list of references using apacite.sty. Commands using natbib.sty MUsT be deactivated first!
+%\renewcommand\bibliographytypesize{\fontsize{10}{12}\selectfont}% To set the list of references in 10 point font using apacite.sty. Commands using natbib.sty MUsT be deactivated first!
+
+\theoremstyle{plain}% Theorem-like structures
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{proposition}[theorem]{Proposition}
+
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{example}[theorem]{Example}
+
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}
+\newtheorem{notation}{Notation}
+
+\begin{document}
+
+\articletype{ARTICLE TEMPLATE}
+
+\title{FPGA Implementation of Parameter Optimization using Levenberg \& Marquart Algorithm}
+
+\author{
+\name{Mehmet Ali Cavuslu\textsuperscript{a}and suhap sahin\textsuperscript{b}\thanks{CONTACT suhap sahin. Email: suhapsahin@kocaeli.edu.tr} }
+\affil{\textsuperscript{a}Koc Information and Defence Tech., TURKEY; \textsuperscript{b}Kocaeli University Computer Engineering Department, TURKEY}
+}
+
+\maketitle
+
+\begin{abstract}
+.
+\end{abstract}
+
+\begin{keywords}
+Levenberg Marquardt; FPGA; Filter; ANN;
+\end{keywords}
+
+
+\section{Introduction}
+
+\section{Levenberg \& Marquard Algorithm}
+
+Egim dusum ve Newton algoritmalarindan turetilen LM algoritmasina ait parametre guncelleme islemi Eq.~\ref{eq:lm_update}'de verilmistir. Eq.~\ref{eq:lm_update}'de $\omega$ agirlik vektoru, $I$ birim matris, $\mu$ kombinasyon katsayisidir. $J$, $[(P x n), N]$ boyutunda Jacobian matrisini, $e$, $[(P x n), 1]$ boyutunda hata vektorunu gostermektedir. $P$ , optimize edilecek ornek sayisini, $n$ cikis sayisini ve $N$ optimize edilecek parametre sayisini gostermektedir (\citealt{Wil98}).
+
+\begin{equation}
+\label{eq:lm_update}
+ \Delta\omega=(J^TJ+\mu I)J^Te
+\end{equation}
+
+Levenberg \& Marquardt algoritmasi parametre guncelleme islemlerini, tum giris ornek degerleri icin olusturdugu hata vektorunu ve Jacobian matrisini kullanarak yapmaktadir. Eq.~\ref{eq:jacobian}'de Jacobian matrisinin elde edilmesi gosterilmektedir. Hata vektore ise Eq.~\ref{eq:error}'deki gibi elde edilir.
+
+\begin{equation}
+\label{eq:jacobian}
+ J = \begin{bmatrix}
+       \frac{\partial e_{11}}{\partial\omega_1} & 
+       \frac{\partial e_{11}}{\partial\omega_2} &
+       \dots &
+       \frac{\partial e_{11}}{\partial\omega_N} \\[0.3em]
+       \dots & \dots & \dots & \dots \\[0.3em] 
+         
+       \frac{\partial e_{1n}}{\partial\omega_1} & 
+       \frac{\partial e_{1n}}{\partial\omega_2} &
+       \dots &
+	   \frac{\partial e_{1n}}{\partial\omega_N} \\[0.3em]
+	   \dots & \dots & \dots & \dots \\[0.3em]
+	   
+	   \frac{\partial e_{P1}}{\partial\omega_1} & 
+       \frac{\partial e_{P1}}{\partial\omega_2} &
+       \dots &
+       \frac{\partial e_{P1}}{\partial\omega_N} \\[0.3em]
+       \dots & \dots & \dots & \dots \\[0.3em] 
+       
+       \frac{\partial e_{Pn}}{\partial\omega_1} & 
+       \frac{\partial e_{Pn}}{\partial\omega_2} &
+       \dots &
+	   \frac{\partial e_{Pn}}{\partial\omega_N} \\[0.3em]       
+                  
+     \end{bmatrix}
+\end{equation}
+
+\begin{equation}
+\label{eq:error}
+ e = \begin{bmatrix}
+       e_{11} \\[0.3em]
+       \dots \\[0.3em] 
+       
+       e_{1n} \\[0.3em]
+       \dots \\[0.3em]          
+
+       e_{P1} \\[0.3em]
+       \dots \\[0.3em] 
+       
+       e_{Pn} \\[0.3em]             
+                  
+     \end{bmatrix}
+\end{equation}
+
+Eq.~\ref{eq:lm_update}'de $\mu$ ayarlanabilir bir parametredir (Eq.~\ref{eq:mu}). Eger bu parametre cok buyukse yontem egim dusum metodu gibi davranmaktadir. Eger cok kucukse Newton metodu gibi davranmaktadir (\citep{Has10}).
+
+ 
+\begin{equation}
+\label{eq:mu}
+ \mu (n) = 
+   \begin{cases}
+    k\mu(n-1)  & \quad E(t) > E(t-1)\\
+   \mu(n-1)/k  & \quad E(t) \leq E(t-1\\
+  \end{cases}
+\end{equation}
+
+\section{FPGA Implementation of Levenberg \& Marquard Algorithm}
+FPGA tabanli Levenberg \& Marquardt Algoritmasi ile parametre optimizasyonuun donanimsal gerceklenmesi Jacobian matrisinin olusturulmasi, parametrelerin guncellenmesi asamalarindan meydana gelmektedir.
+
+\subsection{Jacobian matrix generating}
+
+Bu calismada Levenberg \& Matquardt algoritmasi kullanarak parametre optimizasyonu islemlerinin paralel mimaride kosturulmasi amaclanmistir. Bu nedenle optimize edilecek parametre icin ayri RAM bloklari ($N$) olusturulmustur. Her bir RAM blogunun uzunlugu giris ornek sayisina esittir. RAM’larin derinlikleri calismada 32 bit kayan noktali sayi formatinda islem yapilacagindan dolayi 32 bit olarak ayarlanmistir (Fig.~\ref{fig:jacobian}).
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=8cm]{Jacobian}
+
+  \caption{swarm updating block schema}
+  \label{fig:jacobian}
+\end{figure}
+
+\subsection{Multiplication of transpose Jacobian matrix and Jacobian matrix}
+Parametrelerin guncellemesi isleminde (2.19)’daki esitlik adim adim uygulanmaktadir. Jacobian matrisinin olusturulmasi sonrasinda gerceklestirilen devrik Jacobian matris carpimi ile Jacobian matrisi carpimi sonucunda $NxN$ boyotunda matrsi elde edilir. İslem sonuclarinin saklanmasi icin cikista elde edilecek matris boyutlari referans alinarak  $N$ uzunlugunda ve 32 bit derilikte $N$ adet RAM blogu olusturulmustur (Fig.~\ref{fig:trans_carpim}). her parametre degerlerinin farkli RAM'de saklanmasi ile islem yapilacak satirdaki tum degerler ayni anda okunabilmektedir ve islemler ayni anda gerceklenerek zamandan kazanim saglanmaktadir. Paralellestirme islemi yapilmadan $N^2P$ dongude gerceklestirilen carpma islemi $NP$ dongude gerceklestirilmistir.
+
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=5cm]{transpoze_carpim}
+
+  \caption{Matris carpimi sonucunu saklamak icin olusturulan blok ram yapisi}
+  \label{fig:trans_carpim}
+\end{figure}
+
+
+Donanimsal gerceklemede birinci adimda ilk olarak, Jacobian matrisinde her parametre icin olusturulan blok RAM’lardan degerler sirasiyla okunmaktadir. 2. adimda bu degerler, arasindan carpma isleminde kullanilacak olan $J(k,m)$ degeri secilmektedir. 3. adimda secilen bu deger, 1. adimda okudugumuz degerlerle carpilmaktadir.  4. Adimda, 3. adimda elde edilen carpma degeri bir onceki $k$ degerinde elde edilen toplam degeri ile toplanmaktadir. Bu toplam degeri $k=0$  icin $0$ olmaktadir. 5. adimda $k$  degeri bir artirilmakta eger    $k$ degeri $P$  degerinden kucukse 1. adima gecilmekte aksi takdirde 6. adima gecilmektedir (Fig.~\ref{fig:multip_1}).
+
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=5cm]{multip_1}
+
+  \caption{Matris carpimi sonucunu saklamak icin olusturulan blok ram yapisi}
+  \label{fig:multip_1}
+\end{figure}
+
+
+6. adimda 4. adimda elde edilen toplam degeri carpim degerlerini tutmak icin olusturulan RAM’lara yazilmaktadir. $\mu I$  degerinin matris carpimina olan etkisi sadece matris kosegenlerine  $\mu$  degerini eklenmesi ile elde edilebilmektedir. Bu nedenle 7. adimda matrisin $(m,m)$   kosegen degeri bulunmakta, 8. Adimda ise bu deger RAM’a yazilmaktadir. 9. adimda  $m$  degeri bir artirilmaktadir. Bu deger $N$  degerinden kucuk olursa 1. adima tekrar donulur. Aksi takdirde islem sonlandirilir (Fig.~\ref{fig:multip_2}).
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=5cm]{multip_2}
+
+  \caption{Matris carpimi sonucunu saklamak icin olusturulan blok ram yapisi}
+  \label{fig:multip_2}
+\end{figure}
+
+Matris carpimi isleminde RAM’a yazilan kosegen degerleri 1. adimda RAM’dan okunmaktadir. 2. adimda okunan deger, ilgili kosegen degerine yonlendirilir. 3. adimda da bu deger $\mu$   parametresi eklenir. 4. asamada elde edilen sonuclar    RAM’in $m.$  adresine yazilmaktadir. 5. adimda ise $m$ degeri bir artirilmaktadir. Bu deger $N$  degerinden kucuk olursa 1. adima tekrar donulur. Aksi takdirde islem sonlandirilir (Fig.~\ref{fig:add_mu}).
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=5cm]{add_mu}
+
+  \caption{Matris carpimi sonucunu saklamak icin olusturulan blok ram yapisi}
+  \label{fig:add_mu}
+\end{figure}
+ 
+\subsection{Inverse Matrix Caclulation}
+Literaturde matrisin tersini almak icin adjoint,  LU, QR, Hermitian, Analitik, Blockwise, Gauss-Jordan yok etme yontemleri onerilmistir. Bu calismada Gauss-Jordan yok etme yontemi kullanilarak matris boyutu sinirlamasi olmadan donanimsal gerceklenmesi uzerinde calisilmistir.
+
+Matrisin tersini alma isleminde 1. asamada ilk olarak bir onceki asamada elde ettigimiz ve $RAM_{M}$’larda sakladigimiz $\mu$ parametresi eklenmis carpim degerleri ve baslangicta birim matris olarak olusturulan $RAM_J$’lerden $m.$  adresteki degerlerler okunmaktadir. 2. asamada $m.$ $RAM_M$’deki deki deger secilmektedir. 3. asamada, 1. asamada okunan tum degerler 2. asamada elde edilen degere bolunmektedir. Bolme sonuclari 4. asamada tekrar $RAM_M$ ve $RAM_J$’lerde $m.$  adreslerdeki yerlerine yazilmaktadir (Fig.~\ref{fig:inv_1}).
+
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=5cm]{inv_1}
+
+  \caption{Matris carpimi sonucunu saklamak icin olusturulan blok ram yapisi}
+  \label{fig:inv_1}
+\end{figure}
+
+5. adimda $x$  degerinin $m$  degerine esit olup olmadigi kontrol edilmektedir. Eger esit ise $x$  degeri 1 artirilmak uzere 13. adima gecilmektedir. Aksi takdirde 6. adima gecilmektedir. 6. adimda carpim degerlerinin ve ters (invers) degerlerinin tutuldugu matris degerleri RAM’lardan $x.$  degerler okunmaktadir. 7. adimda ise carpim degerlerinin tutuldugu RAM’lardan okunan degerlerden $m.$  RAM’a ait deger indeks degeri olarak secilmektedir. 8. adimda ise RAM’lardan okunan tum degerler hafizada tutulmaktadir (Fig.~\ref{fig:inv_2}).
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=5cm]{inv_2}
+
+  \caption{Matris carpimi sonucunu saklamak icin olusturulan blok ram yapisi}
+  \label{fig:inv_2}
+\end{figure}
+
+9. adimda ise carpim degerlerinin ve tersinin degerlerinin tutuldugu matris degerleri RAM’lardan $x.$ degerler okunmaktadir. 10. Adimda okunan bu degerler indeks degeri ile carpilmaktadir. 11. adimda, 8. adimda hafizada sakladigimiz bu degerlerden 10 adimda elde edilen carpma degerleri cikartilmaktadir. 12. adimda ise cikarma islemi sonucu $RAM_M$ ve $RAM_J$’lerdeki $x.$ yerlerine yazilmaktadir. 13. adimda $x$  degeri 1 artirilmaktadir.  $x$ degeri parametre sayisindan az ise 5. adima donulur aksi takdirde 14. adima gecilir. 14. Adimda ise $m$ degeri 1 artirilir. Eger bu deger parametre sayisindan kucuk ise 1. Adima donulur aksi takdirde islem sonlandirilir (Fig.~\ref{fig:inv_3}).
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=5cm]{inv_3}
+
+  \caption{Matris carpimi sonucunu saklamak icin olusturulan blok ram yapisi}
+  \label{fig:inv_3}
+\end{figure}
+
+\subsection{Matris tersi ile devrik Jacobian matrisinin ve hata matrisinin carpimi}
+1. adimda ters matris değerlerinin tutulduğu RAM’lardan $m.$  değerler okunmaktadir. 2. asamada ise Jacobian matris parametrelerinin tutulduğu RAM’lardan $x.$  değerler okunmaktadir. 3. asamada 1. ve 2. asamada okunan değerler 3. Asamada vektör carpimi islemine tabi tutulmaktadir. 4. asamada ise vektör carpiminin sonucu $x.$ giris  değerleri icin elde edilen hata değeri ile carpilmaktadir.  5. adimda carpim sonucu bir önceki adimda elde edilen carpim sonuc değerlerine eklenir. 6. adimda $x$  değeri 1 artirilmaktadir. $x$  değeri örnek sayisindan az ise 2. adima donulur aksi takdirde 7. adima gecilir. 7. adimda tüm giris örnekleri icin hata ile matris carpim sonuclarinin toplami $m.$ parametreye ait güncelleme değeri olarak saklanmaktadir. 8. adimda $m.$ değeri 1 artirilir. Eğer bu değer parametre sayisindan kücük ise 1. Adima dönülür aksi takdirde islem sonlandirilir (Fig.~\ref{fig:last_mul}).
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=5cm]{last_mul}
+
+  \caption{Matris carpimi sonucunu saklamak icin olusturulan blok ram yapisi}
+  \label{fig:last_mul}
+\end{figure}
+
+
+
+\section{FIR Filter Parameter Optimization}
+\section{ANN Training}
+YSA’nın eğitiminin Levenberg \& Marquardt Algoritması ile FPGA’da donanımsal gerçeklenmesi Jacobian matrisinin oluşturulma islemi Eq.~\ref{eq:ann_jacob} 'de gösterilmiştir (Fig.~\ref{fig:ann}).
+
+\begin{equation}
+\label{eq:ann_jacob}
+ J = \begin{bmatrix}
+      \Delta\omega^1_{11} & \dots & \Delta\omega^1_{1q} & \dots &
+      \Delta\omega^1_{m1} & \dots & \Delta\omega^1_{mq} &
+      \Delta b^1_{1} & \dots \Delta b^1_{q} & \dots 
+       \\[0.3em]
+          
+                  
+     \end{bmatrix}
+\end{equation}
+
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=5cm]{ann}
+
+  \caption{Matris carpimi sonucunu saklamak icin olusturulan blok ram yapisi}
+  \label{fig:ann}
+\end{figure}
+
+
+\subsection{Title, authors' names, affiliations, abstracts and article types}
+
+The title should be generated at the beginning of your article using the \verb"\maketitle" command.
+In the final version the author name(s) and affiliation(s) must be followed immediately by \verb"\maketitle" as shown below in order for them to be displayed in your PDF document.
+To prepare an anonymous version for double-blind peer review, you can put the \verb"\maketitle" between the \verb"\title" and the \verb"\author" in order to hide the author name(s) and affiliation(s) temporarily.
+Next you should include the abstract if your article has one, enclosed within an \texttt{abstract} environment.
+The \verb"\articletype" command is also provided as an \emph{optional} element which should only be included if your article actually needs it.
+For example, the titles for this document begin as follows:
+\begin{verbatim}
+\articletype{ARTICLE TEMPLATE}
+
+\title{Taylor \& Francis \LaTeX\ template for authors (\textsf{Interact}
+layout + American Psychological Association reference style)}
+
+\author{
+\name{A.~N. Author\textsuperscript{a}\thanks{CONTACT A.~N. Author.
+Email: latex.helpdesk@tandf.co.uk} and John smith\textsuperscript{b}}
+\affil{\textsuperscript{a}Taylor \& Francis, 4 Park square, Milton
+Park, Abingdon, UK; \textsuperscript{b}Institut f\"{u}r Informatik,
+Albert-Ludwigs-Universit\"{a}t, Freiburg, Germany} }
+
+\maketitle
+
+\begin{abstract}
+This template is for authors who are preparing a manuscript for a
+Taylor \& Francis journal using the \LaTeX\ document preparation system
+and the \texttt{interact} class file, which is available via selected
+journals' home pages on the Taylor \& Francis website.
+\end{abstract}
+\end{verbatim}
+
+An additional abstract in another language (preceded by a translation of the article title) may be included within the \verb"abstract" environment if required.
+
+A graphical abstract may also be included if required. Within the \verb"abstract" environment you can include the code
+\begin{verbatim}
+\\\resizebox{25pc}{!}{\includegraphics{abstract.eps}}
+\end{verbatim}
+where the graphical abstract is to appear, where \verb"abstract.eps" is the name of the file containing the graphic (note that \verb"25pc" is the recommended maximum width, expressed in pica, for the graphical abstract in your manuscript).
+
+
+\subsection{Abbreviations}
+
+A list of abbreviations may be included if required, enclosed within an \texttt{abbreviations} environment, i.e.\ \verb"\begin{abbreviations}"\ldots\verb"\end{abbreviations}", immediately following the \verb"abstract" environment.
+
+
+\subsection{Keywords}
+
+A list of keywords may be included if required, enclosed within a \texttt{keywords} environment, i.e.\ \verb"\begin{keywords}"\ldots\verb"\end{keywords}". Additional keywords in other languages (preceded by a translation of the word `keywords') may also be included within the \verb"keywords" environment if required.
+
+
+\subsection{subject classification codes}
+
+AMs, JEL or PACs classification codes may be included if required. The \texttt{interact} class file provides an \texttt{amscode} environment, i.e.\ \verb"\begin{amscode}"\ldots\verb"\end{amscode}", a \texttt{jelcode} environment, i.e.\ \verb"\begin{jelcode}"\ldots\verb"\end{jelcode}", and a \texttt{pacscode} environment, i.e.\ \verb"\begin{pacscode}"\ldots\verb"\end{pacscode}" to assist with this.
+
+
+
+
+\section{some guidelines for using the standard features of \LaTeX}
+
+\subsection{sections}
+
+The \textsf{Interact} layout style allows for five levels of section heading, all of which are provided in the \texttt{interact} class file using the standard \LaTeX\ commands \verb"\section", \verb"\subsection", \verb"\subsubsection", \verb"\paragraph" and \verb"\subparagraph". Numbering will be automatically generated for all these headings by default.
+
+
+\subsection{Lists}
+
+Numbered lists are produced using the \texttt{enumerate} environment, which will number each list item with arabic numerals by default. For example,
+\begin{enumerate}
+  \item first item
+  \item second item
+  \item third item
+\end{enumerate}
+was produced by
+\begin{verbatim}
+\begin{enumerate}
+  \item first item
+  \item second item
+  \item third item
+\end{enumerate}
+\end{verbatim}
+Alternative numbering styles can be achieved by inserting an optional argument in square brackets to each \verb"item", e.g.\ \verb"\item[(i)] first item"\, to create a list numbered with roman numerals at level one.
+
+Bulleted lists are produced using the \texttt{itemize} environment. For example,
+\begin{itemize}
+  \item First bulleted item
+  \item second bulleted item
+  \item Third bulleted item
+\end{itemize}
+was produced by
+\begin{verbatim}
+\begin{itemize}
+  \item First bulleted item
+  \item second bulleted item
+  \item Third bulleted item
+\end{itemize}
+\end{verbatim}
+
+
+\subsection{Figures}
+
+The \texttt{interact} class file will deal with positioning your figures in the same way as standard \LaTeX. It should not normally be necessary to use the optional \texttt{[htb]} location specifiers of the \texttt{figure} environment in your manuscript, although the \texttt{[p]} option -- i.e.\ \verb"\begin{figure}[p]" -- is useful if you are asked to separate figures from the text.
+
+Figure captions should appear below the figure itself, therefore the \verb"\caption" command should appear after the figure.
+For example, Figure~\ref{sample-figure} with caption and sub-captions is produced using the following commands:
+\begin{verbatim}
+\begin{figure}
+\centering
+\subfigure[An example of an individual figure sub-caption.]{
+\resizebox*{5cm}{!}{\includegraphics{graph1.eps}}}\hspace{5pt}
+\subfigure[A slightly shorter sub-caption.]{
+\resizebox*{5cm}{!}{\includegraphics{graph2.eps}}}
+\caption{Example of a two-part figure with individual sub-captions
+ showing that captions are flush left and justified if greater
+ than one line of text.} \label{sample-figure}
+\end{figure}
+\end{verbatim}
+\begin{figure}
+\centering
+\subfigure[An example of an individual figure sub-caption.]{
+\resizebox*{5cm}{!}{\includegraphics{graph1.eps}}}\hspace{5pt}
+\subfigure[A slightly shorter sub-caption.]{
+\resizebox*{5cm}{!}{\includegraphics{graph2.eps}}}
+\caption{Example of a two-part figure with individual sub-captions
+ showing that captions are flush left and justified if greater
+ than one line of text.} \label{sample-figure}
+\end{figure}
+
+To ensure that figures are correctly numbered automatically, the \verb"\label" command should be included just after the \verb"\caption" command, or in its argument.
+
+The \verb"\subfigure" command requires \verb"subfigure.sty", which is called in the preamble of the \texttt{interactapasample.tex} file (in order to allow your choice of an alternative package if preferred) and included in the \textsf{Interact} \LaTeX\ bundle for convenience. Please supply any additional figure macros you use with your article in the preamble of your .tex file, before \verb"\begin{document}".
+
+The source files of any figures will be required when the final, revised version of a manuscript is submitted. Authors should ensure that these are suitable (in terms of lettering size, etc.) for the reductions they envisage.
+
+The \texttt{epstopdf} package can be used to incorporate encapsulated Postscript (.eps) illustrations when using PDF\LaTeX, etc. Please provide the original .eps source files rather than the generated PDF images of those illustrations for production purposes.
+
+
+\subsection{Tables}
+
+The \texttt{interact} class file will deal with positioning your tables in the same way as standard \LaTeX. It should not normally be necessary to use the optional \texttt{[htb]} location specifiers of the \texttt{table} environment in your manuscript, although the \texttt{[p]} option -- i.e.\ \verb"\begin{table}[p]" -- is useful if you are asked to separate tables from the text.
+
+The \texttt{tabular} environment can be used as illustrated here to produce tables with single horizontal rules at the head, foot and elsewhere as appropriate.
+The table caption appears above the body of the table in the \textsf{Interact} layout style, therefore the \verb"\tbl" command should be used before the body of the table.
+For example, Table~\ref{sample-table} is produced using the following commands:
+\begin{table}
+\tbl{Example of a table showing that its caption is as wide as
+ the table itself and justified.}
+{\begin{tabular}{lcccccc} \toprule
+ & \multicolumn{2}{l}{Type} \\ \cmidrule{2-7}
+ Class & One & Two & Three & Four & Five & six \\ \midrule
+ Alpha\textsuperscript{a} & A1 & A2 & A3 & A4 & A5 & A6 \\
+ Beta & B2 & B2 & B3 & B4 & B5 & B6 \\
+ Gamma & C2 & C2 & C3 & C4 & C5 & C6 \\ \bottomrule
+\end{tabular}}
+\tabnote{\textsuperscript{a}This footnote shows how to include
+ footnotes to a table if required.}
+\label{sample-table}
+\end{table}
+\begin{verbatim}
+\begin{table}
+\tbl{Example of a table showing that its caption is as wide as
+ the table itself and justified.}
+{\begin{tabular}{lcccccc} \toprule
+ & \multicolumn{2}{l}{Type} \\ \cmidrule{2-7}
+ Class & One & Two & Three & Four & Five & six \\ \midrule
+ Alpha\textsuperscript{a} & A1 & A2 & A3 & A4 & A5 & A6 \\
+ Beta & B2 & B2 & B3 & B4 & B5 & B6 \\
+ Gamma & C2 & C2 & C3 & C4 & C5 & C6 \\ \bottomrule
+\end{tabular}}
+\tabnote{\textsuperscript{a}This footnote shows how to include
+ footnotes to a table if required.}
+\label{sample-table}
+\end{table}
+\end{verbatim}
+
+To ensure that tables are correctly numbered automatically, the \verb"\label" command should be included just before \verb"\end{table}".
+
+The \verb"\toprule", \verb"\midrule", \verb"\bottomrule" and \verb"\cmidrule" commands require \verb"booktabs.sty", which is called by the \texttt{interact} class file and included in the \textsf{Interact} \LaTeX\ bundle for convenience. Tables produced using the standard commands of the \texttt{tabular} environment are also compatible with the \texttt{interact} class file.
+
+
+\subsection{Landscape pages}
+
+If a figure or table is too wide to fit the page it will need to be rotated, along with its caption, through 90$^{\circ}$ anticlockwise.
+Landscape figures and tables can be produced using the \verb"rotating" package, which is called by the \texttt{interact} class file.
+The following commands (for example) can be used to produce such pages.
+\begin{verbatim}
+\setcounter{figure}{1}
+\begin{sidewaysfigure}
+\centerline{\epsfbox{figname.eps}}
+\caption{Example landscape figure caption.}
+\label{landfig}
+\end{sidewaysfigure}
+\end{verbatim}
+\begin{verbatim}
+\setcounter{table}{1}
+\begin{sidewaystable}
+ \tbl{Example landscape table caption.}
+  {\begin{tabular}{@{}llllcll}
+    .
+    .
+    .
+  \end{tabular}}\label{landtab}
+\end{sidewaystable}
+\end{verbatim}
+Before any such float environment, use the \verb"\setcounter" command as above to fix the numbering of the caption (the value of the counter being the number given to the preceding figure or table). subsequent captions will then be automatically renumbered accordingly. The \verb"\epsfbox" command requires \verb"epsfig.sty", which is called by the \texttt{interact} class file and is also included in the \textsf{Interact} \LaTeX\ bundle for convenience.
+
+
+\subsection{Theorem-like structures}
+
+A predefined \verb"proof" environment is provided by the \texttt{amsthm} package (which is called by the \texttt{interact} class file), as follows:
+\begin{proof}
+More recent algorithms for solving the semidefinite programming relaxation are particularly efficient, because they explore the structure of the MAX-CUT problem.
+\end{proof}
+\noindent This was produced by simply typing:
+\begin{verbatim}
+\begin{proof}
+More recent algorithms for solving the semidefinite programming
+relaxation are particularly efficient, because they explore the
+structure of the MAX-CUT problem.
+\end{proof}
+\end{verbatim}
+Other theorem-like environments (theorem, definition, remark, etc.) need to be defined as required, e.g.\ using \verb"\newtheorem{theorem}{Theorem}" in the preamble of your .tex file (see the preamble of \verb"interactapasample.tex" for more examples). You can define the numbering scheme for these structures however suits your article best. Please note that the format of the text in these environments may be changed if necessary to match the style of individual journals by the typesetter during preparation of the proofs.
+
+
+\subsection{Mathematics}
+
+\subsubsection{Displayed mathematics}
+
+The \texttt{interact} class file will set displayed mathematical formulas centred on the page without equation numbers if you use the \texttt{displaymath} environment or the equivalent \verb"\[...\]" construction. For example, the equation
+\[
+ \hat{\theta}_{w_i} = \hat{\theta}(s(t,\mathcal{U}_{w_i}))
+\]
+was typeset using the commands
+\begin{verbatim}
+\[
+ \hat{\theta}_{w_i} = \hat{\theta}(s(t,\mathcal{U}_{w_i}))
+\]
+\end{verbatim}
+
+For those of your equations that you wish to be automatically numbered sequentially throughout the text, use the \texttt{equation} environment, e.g.
+\begin{equation}
+ \hat{\theta}_{w_i} = \hat{\theta}(s(t,\mathcal{U}_{w_i}))
+\end{equation}
+was typeset using the commands
+\begin{verbatim}
+\begin{equation}
+ \hat{\theta}_{w_i} = \hat{\theta}(s(t,\mathcal{U}_{w_i}))
+\end{equation}
+\end{verbatim}
+
+Part numbers for sets of equations may be generated using the \texttt{subequations} environment, e.g.
+\begin{subequations} \label{subeqnexample}
+\begin{equation}
+        \varepsilon \rho w_{tt}(s,t)
+        = N[w_{s}(s,t),w_{st}(s,t)]_{s},
+        \label{subeqnpart}
+\end{equation}
+\begin{equation}
+        w_{tt}(1,t)+N[w_{s}(1,t),w_{st}(1,t)] = 0,
+\end{equation}
+\end{subequations}
+which was generated using the commands
+\begin{verbatim}
+\begin{subequations} \label{subeqnexample}
+\begin{equation}
+        \varepsilon \rho w_{tt}(s,t)
+        = N[w_{s}(s,t),w_{st}(s,t)]_{s},
+        \label{subeqnpart}
+\end{equation}
+\begin{equation}
+        w_{tt}(1,t)+N[w_{s}(1,t),w_{st}(1,t)] = 0,
+\end{equation}
+\end{subequations}
+\end{verbatim}
+This is made possible by the \texttt{amsmath} package, which is called by the class file. If you put the \verb"\label{}" just after the \verb"\begin{subequations}" line, references will be to the collection of equations, `(\ref{subeqnexample})' in the example above. Or, like the example code above, you can reference each equation individually -- e.g.\ `(\ref{subeqnpart})'.
+
+Displayed mathematics should be given end-of-line punctuation appropriate to the running text sentence of which it forms a part, if required.
+
+\subsubsection{Math fonts}
+
+\paragraph{superscripts and subscripts}
+superscripts and subscripts will automatically come out in the correct size in a math environment (i.e.\ enclosed by `\verb"$"' delimiters in running text, or within \verb"\[...\]" or the `\texttt{equation}' environment for displayed equations). sub/superscripts that are physical variables should be italic, whereas those that are labels should be roman (e.g.\ $C_p$, $T_\mathrm{eff}$). If the subscripts or superscripts need to be other than italic, they must be coded individually.
+
+\paragraph{Upright Greek characters and the upright partial derivative sign}
+Upright lowercase Greek characters can be obtained by inserting the letter `u' in the control code for the character, e.g.\ \verb"\umu" and \verb"\upi" produce $\umu$ (used, for example, in the symbol for the unit microns -- $\umu\mathrm{m}$) and $\upi$ (the ratio of the circumference of a circle to its diameter). similarly, the control code for the upright partial derivative $\upartial$ is \verb"\upartial". Bold lowercase as well as uppercase Greek characters can be obtained by \verb"{\bm \gamma}", for example, which gives ${\bm \gamma}$, and \verb"{\bm \Gamma}", which gives ${\bm \Gamma}$.
+
+
+\section*{Acknowledgement(s)}
+
+An unnumbered section, e.g.\ \verb"\section*{Acknowledgements}", may be used for thanks, etc.\ if required and included \emph{in the non-anonymous version} before any Notes or References.
+
+
+\section*{Disclosure statement}
+
+An unnumbered section, e.g.\ \verb"\section*{Disclosure statement}", may be used to declare any potential conflict of interest and included \emph{in the non-anonymous version} before any Notes or References, after any Acknowledgements and before any Funding information.
+
+
+\section*{Funding}
+
+An unnumbered section, e.g.\ \verb"\section*{Funding}", may be used for grant details, etc.\ if required and included \emph{in the non-anonymous version} before any Notes or References.
+
+
+\section*{Notes on contributor(s)}
+
+An unnumbered section, e.g.\ \verb"\section*{Notes on contributors}", may be included \emph{in the non-anonymous version} if required. A photograph may be added if requested.
+
+
+\section*{Notes}
+
+An unnumbered `Notes' section may be included before the References (if using the \verb"endnotes" package, use the command \verb"\theendnotes" where the notes are to appear, instead of creating a \verb"\section").
+
+
+\section{References}
+
+\subsection{References cited in the text}
+
+References should be cited in accordance with \citeauthor{APA10} (APA) style, i.e.\ in alphabetical order separated by semicolons, e.g.\ `\citep{Ban77,Pia88,Gre06}' or `\ldots see smith (1985, p.~75)'. If there are two authors with the same surname, use the first initials with the surnames, e.g.\ `\citep{Lig08,Lig06}'. If there are three to five authors, list all the authors in the first citation, e.g.\ `\citep{GssM91}'. In subsequent citations, use only the first author's surname followed by et al., e.g.\ `\citep{GssM91}'. For six or more authors, cite the first author's name followed by et al. For two or more sources by the same author(s) in the same year, use lower-case letters (a,~b,~c, \ldots) with the year to order the entries in the reference list and use these lower-case letters with the year in the in-text citations, e.g.\ `(Green, 1981a,b)'. For further details on this reference style, see the Instructions for Authors on the Taylor \& Francis website.
+
+Each bibliographic entry has a key, which is assigned by the author and used to refer to that entry in the text. In this document, the key \verb"Nas93" in the citation form \verb"\citep{Nas93}" produces `\citep{Nas93}', and the keys \verb"Koc59", \verb"Han04" and \verb"Cla08" in the citation form \verb"\citep{Koc59,Han04,Cla08}" produce `\citep{Koc59,Han04,Cla08}'. The citation \verb"\citep{Cha08}" produces `\citep{Cha08}' where the citation first appears in the text, and `\citep{Cha08}' in any subsequent citation. The appropriate citation style for different situations can be obtained, for example, by \verb"\citet{Ovi95}" for `\citet{Ovi95}', \verb"\citealp{MPW08}" for `\citealp{MPW08}', and \verb"\citealt{sch93}" for `\citealt{sch93}'. Citation of the year alone may be produced by \verb"\citeyear{sch00}", i.e.\ `\citeyear{sch00}', or \verb"\citeyearpar{Gra05}", i.e.\ `\citeyearpar{Gra05}', or of the author(s) alone by \verb"\citeauthor{Rit74}", i.e.\ `\citeauthor{Rit74}'. Optional notes may be included at the beginning and/or end of a citation by the use of square brackets, e.g.\ \verb"\citep[p.~31]{Hay08}" produces `\citep[p.~31]{Hay08}'; \verb"\citep[see][pp.~73-–77]{PI51}" produces `\citep[see][pp.~73--77]{PI51}'; \verb"\citep[e.g.][]{Fel81}" produces `\citep[e.g.][]{Fel81}'. A `plain' \verb"\cite" command will produce the same results as a \verb"\citet", i.e.\ \verb"\cite{BriIP}" will produce `\cite{BriIP}'.
+
+
+\subsection{The list of references}
+
+References should be listed at the end of the main text in alphabetical order, then chronologically (earliest first), with full page ranges (where appropriate) and issue numbers (for journals paginated by issue). If a reference has more than seven named authors, list the first six, followed by an ellipsis (\ldots), then the last author. The following list shows some sample references prepared in American Psychological Association style.
+
+\begin{thebibliography}{}
+
+\bibitem[Wilamowski et al.(1999)Wilamowski, Chen, \& Malinowski]{Wil98}
+Wilamowski, B., Chen, Y.,  \&  Malinowski, A. (1999).  Efficient algorithm for training neural networks with one hidden layer. \emph{ in Proceedings of the International Joint Conference on Neural Networks}, \emph{3}, 1725--1728.
+
+\bibitem[Hashemipoor et al.(2010)Hashemipoor, suratgar, \& Fard]{Has10}
+Hashemipoor, s. s., suratgar, A. A.,  \&  Fard, A. (2010).  Designing a Robust MEMs AC Voltage Reference source Using Artificial Neural Network. \emph{ Australian Journal of Basic and Applied sciences}, \emph{4}(6), 1183--1189.
+
+
+\bibitem[American Psychological Association(2010)]{APA10}
+American Psychological Association. (2010). \emph {Publication manual of the
+ American Psychological Association} (6th ed.). Washington, DC: Author.
+
+\bibitem[Wilamowski(1977)]{Ban77}
+Bandura, A.~J. (1977). \emph{social learning theory}. Englewood Cliffs, NJ:
+ Prentice Hall.
+ 
+
+ 
+
+\bibitem[Briscoe(in press)]{BriIP}
+Briscoe, R. (in press). {Egocentric spatial representation in action and
+ perception}. \emph{Philosophy and Phenomenological Research}. Retrieved from
+ http://cogprints.org/5780/1/ECsRAP.F07.pdf
+
+\bibitem[Chamberlin et al.(2008)Chamberlin, Novotney, Packard, \& Price]{Cha08}
+Chamberlin, J., Novotney, A., Packard, E., \& Price, M. (2008, May).
+ Enhancing worker well-being: Occupational health psychologists convene to
+ share their research on work, stress, and health. \emph{Monitor on
+ Psychology}, \emph{39}(5), 26--29.
+
+\bibitem[Clay(2008)]{Cla08}
+Clay, R. (2008, June). science vs. ideology: Psychologists fight back about the
+ misuse of research. \emph{Monitor on Psychology}, \emph{39}(6). Retrieved from
+ http://www.apa.org/monitor/
+
+\bibitem[Feller(1981)]{Fel81}
+Feller, B.~A. (1981). \emph{Health characteristics of persons with chronic
+ activity limitation, United states, 1979} (Tech. Rep. No. VHs-sER10/137).
+ Hyattsville, MD: National Center for Health statistics (Us). (Available from:
+ NTIs, springfield, VA; PB88-228622)
+
+\bibitem[Ganster et al.(1991)Ganster, schaubroeck, sime, \& Mayes]{GssM91}
+Ganster, D.~C., schaubroeck, J., sime, W.~E., \& Mayes, B.~T. (1991).
+ The nomological validity of the Type A personality among employed adults
+ [Monograph]. \emph{Journal of Applied Psychology}, \emph{76}, 143--168.
+
+\bibitem[Graham(2005)]{Gra05}
+Graham, G. (2005). Behaviorism. In E.~N. Zalta (ed.), \emph{The stanford
+ encyclopedia of philosophy} (Fall 2007 ed.). Retrieved from
+ http://plato.stanford.edu/entries/behaviorism
+
+\bibitem[Greenfield \& Yan(2006)]{Gre06}
+Greenfield, P., \& Yan, Z. (Eds.). (2006). Children, adolescents, and the
+ Internet [special section]. \emph{Developmental Psychology}, \emph{42},
+ 391--458.
+
+\bibitem[Haney \& Wiener(2004)]{Han04}
+Haney, C., \& Wiener, R.~L. (Eds.). (2004). Capital punishment in the United
+ states [special issue]. \emph{Psychology, Public Policy, and Law},
+ \emph{10}(4).
+
+\bibitem[Haybron(2008)]{Hay08}
+Haybron, D.~M. (2008). Philosophy and the science of subjective well-being. In
+ M. Eid \& R.~J. Larsen (Eds.), \emph{The science of subjective well-being}
+ (pp. 17--43). New York, NY: Guilford Press.
+
+\bibitem[Koch(1959-1963)]{Koc59}
+Koch, s. (Ed.). (1959--1963). \emph{Psychology: A study of science}
+ (Vols.~1--6). New York, NY: McGraw-Hill.
+
+\bibitem[I. Light(2006)]{Lig06}
+Light, I. (2006). \emph{Deflecting immigration: Networks, markets, and
+ regulation in Los Angeles}. New York, NY: Russell sage Foundation.
+
+\bibitem[M.~A. Light \& Light(2008)]{Lig08}
+Light, M.~A., \& Light, I.~H. (2008). The geographic expansion of Mexican
+ immigration in the United states and its applications for local law
+ enforcement. \emph{Law Enforcement Executive Forum Journal}, \emph{8}(1),
+ 73--82.
+
+\bibitem[Marshall-Pescini \& Whiten(2008)]{MPW08}
+Marshall-Pescini, s., \& Whiten, A. (2008). social learning of nut-cracking
+ behavior in East African sanctuary-living chimpanzees (\emph{Pan troglodytes
+ schweinfurthii}) [supplemental material]. \emph{Journal of Comparative
+ Psychology}, \emph{122}, 186--194.
+
+\bibitem[Nash(1993)]{Nas93}
+Nash, M. (1993). Malay. In P.~Hockings (Ed.), \emph{Encyclopedia of world
+ cultures} (Vol.~5, pp.~174--176). New York, NY: G.~K. Hall.
+
+\bibitem[Oviedo(1995)]{Ovi95}
+Oviedo, s. (1995). \emph{Adolescent pregnancy: Voices heard in the everyday
+ lives of pregnant teenagers} (Master's thesis). University of North Texas,
+ Denton, TX.
+
+\bibitem[Piaget(1988)]{Pia88}
+Piaget, J. (1988). Extracts from Piaget's theory (G.~Gellerier \& J.~Langer,
+ Trans.). In K.~Richardson \& s.~sheldon (Eds.), \emph{Cognitive development
+ to adolescence: A reader} (pp. 3--18). Hillsdale, NJ: Erlbaum. (Reprinted
+ from \emph{Manual of child psychology}, pp. 703--732, by P.~H. Mussen, Ed.,
+ 1970, New York, NY: Wiley)
+
+\bibitem[Piaget \& Inhelder(1951)]{PI51}
+Piaget, J., \& Inhelder, B. (1951). \emph{La gen{\`e}se de l'id{\'e}e de
+ hasard chez l'enfant} [The origin of the idea of chance in the child]. Paris:
+ Presses Universitaires de France.
+
+\bibitem[Ritzmann(1974)]{Rit74}
+Ritzmann, R.~E. (1974). \emph{The snapping mechanism of \emph{Alpheid} shrimp}
+ (Doctoral dissertation). University of Virginia, Charlottesville, VA.
+
+\bibitem[schatz(2000)]{sch00}
+schatz, B.~R. (2000, November 17). Learning by text or context? [Review of the
+ book \emph{The social life of information}, by J.~s. Brown \& P.~Duguid].
+\emph{science}, \emph{290}, 1304.
+
+\bibitem[schwartz(1993)]{sch93}
+schwartz, J. (1993, september 30). Obesity affects economic, social status.
+ \emph{The Washington Post}, pp.~A1, A4.
+
+\end{thebibliography}
+\bigskip
+\noindent This was produced by typing:
+\begin{verbatim}
+\begin{thebibliography}{}
+\bibitem[American Psychological Association(2010)]{APA10}
+American Psychological Association. (2010). \emph {Publication manual
+ of the American Psychological Association} (6th ed.). Washington, DC:
+ Author.
+
+\bibitem[Bandura(1977)]{Ban77}
+Bandura, A.~J. (1977). \emph{social learning theory}. Englewood Cliffs,
+ NJ: Prentice Hall.
+
+\bibitem[Briscoe(in press)]{BriIP}
+Briscoe, R. (in press). {Egocentric spatial representation in action
+ and perception}. \emph{Philosophy and Phenomenological Research}.
+ Retrieved from http://cogprints.org/5780/1/ECsRAP.F07.pdf
+
+\bibitem[Chamberlin et al.(2008)Chamberlin, Novotney, Packard, \& Price]{Cha08}
+Chamberlin, J., Novotney, A., Packard, E., \& Price, M. (2008, May).
+ Enhancing worker well-being: Occupational health psychologists convene
+ to share their research on work, stress, and health. \emph{Monitor on
+ Psychology}, \emph{39}(5), 26--29.
+
+\bibitem[Clay(2008)]{Cla08}
+Clay, R. (2008, June). science vs. ideology: Psychologists fight back
+ about the misuse of research. \emph{Monitor on Psychology},
+ \emph{39}(6). Retrieved from http://www.apa.org/monitor/
+
+\bibitem[Feller(1981)]{Fel81}
+Feller, B.~A. (1981). \emph{Health characteristics of persons with
+ chronic activity limitation, United states, 1979} (Tech. Rep. No.
+ VHs-sER10/137). Hyattsville, MD: National Center for Health statistics
+ (Us). (Available from: NTIs, springfield, VA; PB88-228622)
+
+\bibitem[Ganster et al.(1991)Ganster, schaubroeck, sime, \& Mayes]{GssM91}
+Ganster, D.~C., schaubroeck, J., sime, W.~E., \& Mayes, B.~T. (1991).
+ The nomological validity of the Type A personality among employed
+ adults [Monograph]. \emph{Journal of Applied Psychology}, \emph{76},
+ 143--168.
+
+\bibitem[Graham(2005)]{Gra05}
+Graham, G. (2005). Behaviorism. In E.~N. Zalta (ed.), \emph{The
+ stanford encyclopedia of philosophy} (Fall 2007 ed.). Retrieved from
+ http://plato.stanford.edu/entries/behaviorism
+
+\bibitem[Greenfield \& Yan(2006)]{Gre06}
+Greenfield, P., \& Yan, Z. (Eds.). (2006). Children, adolescents, and
+ the Internet [special section]. \emph{Developmental Psychology},
+ \emph{42}, 391--458.
+
+\bibitem[Haney \& Wiener(2004)]{Han04}
+Haney, C., \& Wiener, R.~L. (Eds.). (2004). Capital punishment in the
+ United states [special issue]. \emph{Psychology, Public Policy, and
+ Law}, \emph{10}(4).
+
+\bibitem[Haybron(2008)]{Hay08}
+Haybron, D.~M. (2008). Philosophy and the science of subjective well-
+ being. In M. Eid \& R.~J. Larsen (Eds.), \emph{The science of
+ subjective well-being} (pp. 17--43). New York, NY: Guilford Press.
+
+\bibitem[Koch(1959-1963)]{Koc59}
+Koch, s. (Ed.). (1959--1963). \emph{Psychology: A study of science}
+ (Vols.~1--6). New York, NY: McGraw-Hill.
+
+\bibitem[I. Light(2006)]{Lig06}
+Light, I. (2006). \emph{Deflecting immigration: Networks, markets,
+ and regulation in Los Angeles}. New York, NY: Russell sage
+ Foundation.
+
+\bibitem[M.~A. Light \& Light(2008)]{Lig08}
+Light, M.~A., \& Light, I.~H. (2008). The geographic expansion of
+ Mexican immigration in the United states and its applications for
+ local law enforcement. \emph{Law Enforcement Executive Forum
+ Journal}, \emph{8}(1), 73--82.
+
+\bibitem[Marshall-Pescini \& Whiten(2008)]{MPW08}
+Marshall-Pescini, s., \& Whiten, A. (2008). social learning of nut-
+ cracking behavior in East African sanctuary-living chimpanzees
+ (\emph{Pan troglodytes schweinfurthii}) [supplemental material].
+ \emph{Journal of Comparative Psychology}, \emph{122}, 186--194.
+
+\bibitem[Nash(1993)]{Nas93}
+Nash, M. (1993). Malay. In P.~Hockings (Ed.), \emph{Encyclopedia of
+ world cultures} (Vol.~5, pp.~174--176). New York, NY: G.~K. Hall.
+
+\bibitem[Oviedo(1995)]{Ovi95}
+Oviedo, s. (1995). \emph{Adolescent pregnancy: Voices heard in the
+ everyday lives of pregnant teenagers} (Master's thesis). University
+ of North Texas, Denton, TX.
+
+\bibitem[Piaget(1988)]{Pia88}
+Piaget, J. (1988). Extracts from Piaget's theory (G.~Gellerier \&
+ J.~Langer, Trans.). In K.~Richardson \& s.~sheldon (Eds.),
+ \emph{Cognitive development to adolescence: A reader} (pp. 3--18).
+ Hillsdale, NJ: Erlbaum. (Reprinted from \emph{Manual of child
+ psychology}, pp. 703--732, by P.~H. Mussen, Ed., 1970, New York,
+ NY: Wiley)
+
+\bibitem[Piaget \& Inhelder(1951)]{PI51}
+Piaget, J., \& Inhelder, B. (1951). \emph{La gen{\`e}se de l'id{\'e}e
+ de hasard chez l'enfant} [The origin of the idea of chance in the
+ child]. Paris: Presses Universitaires de France.
+
+\bibitem[Ritzmann(1974)]{Rit74}
+Ritzmann, R.~E. (1974). \emph{The snapping mechanism of \emph{Alpheid}
+ shrimp} (Doctoral dissertation). University of Virginia,
+ Charlottesville, VA.
+
+\bibitem[schatz(2000)]{sch00}
+schatz, B.~R. (2000, November 17). Learning by text or context?
+ [Review of the book \emph{The social life of information}, by J.~s.
+ Brown \& P.~Duguid]. \emph{science}, \emph{290}, 1304.
+
+\bibitem[schwartz(1993)]{sch93}
+schwartz, J. (1993, september 30). Obesity affects economic, social
+ status. \emph{The Washington Post}, pp.~A1, A4.
+
+\end{thebibliography}
+\end{verbatim}
+\bigskip
+\noindent Each entry takes the form:
+\begin{verbatim}
+\bibitem[short list of authors' surnames(date of publication)long list
+ of authors' surnames]{key}
+Bibliography entry
+\end{verbatim}
+where `\texttt{long list of authors' surnames}' is the \emph{optional} `long' list of three, four or five names which enables them all to appear where the \verb"bibitem" is first cited in the text (if the long list is missing, the short list will be used instead), and `\texttt{key}' is the tag that is to be used as an argument for the \verb"\cite" commands in the text of the article. `\texttt{Bibliography entry}' is the material that is to appear in the list of references, suitably formatted. The commands
+\begin{verbatim}
+\usepackage[longnamesfirst,sort]{natbib}
+\bibpunct[, ]{(}{)}{;}{a}{,}{,}
+\renewcommand\bibfont{\fontsize{10}{12}\selectfont}
+\end{verbatim}
+need to be included in the preamble of your .tex file in order to generate the citations and bibliography as described above.
+
+Instead of typing the bibliography by hand, you may prefer to create the list of references using a \textsc{Bib}\TeX\ database. For this we suggest using Erik Meijer's \texttt{apacite} package, which is available via CTAN if you do not already have it. The \verb"apacite.sty", \verb"apacite.bst" and (assuming your paper is written in English) \verb"english.apc" files need to be in your working folder or an appropriate directory, the commands
+\begin{verbatim}
+\usepackage[natbibapa,nodoi]{apacite}
+\setlength\bibhang{12pt}
+\renewcommand\bibliographytypesize{\fontsize{10}{12}\selectfont}
+\end{verbatim}
+included in the preamble of your .tex file instead of the \verb"\usepackage[]{natbib}", \verb"\bibpunct" and \verb"\renewcommand\bibfont" commands described above, and the lines
+\begin{verbatim}
+\bibliographystyle{apacite}
+\bibliography{interactapasample}
+\end{verbatim}
+included where the list of references is to appear, where \texttt{interactapasample.bib} is the bibliographic database included with the \textsf{Interact}-APA \LaTeX\ bundle (to be replaced with the name of your own .bib file). The \verb"[natbibapa]" option has to be added to \verb"\usepackage[]{apacite}" in order to enable citation commands of the type \verb"\citep" and \verb"\citet". \LaTeX/\textsc{Bib}\TeX\ will extract from your .bib file only those references that are cited in your .tex file and list them in the References section.
+
+Please include a copy of your .bib file and/or the final generated .bbl file among your source files if your .tex file does not contain a reference list in a \texttt{thebibliography} environment.
+
+
+\section{Appendices}
+
+Any appendices should be placed after the list of references, beginning with the command \verb"\appendix" followed by the command \verb"\section" for each appendix title, e.g.
+\begin{verbatim}
+\appendix
+\section{This is the title of the first appendix}
+\section{This is the title of the second appendix}
+\end{verbatim}
+produces:\medskip
+
+\noindent\textbf{Appendix A. This is the title of the first appendix}\medskip
+
+\noindent\textbf{Appendix B. This is the title of the second appendix}\medskip
+
+\noindent subsections, equations, figures, tables, etc.\ within appendices will then be automatically numbered as appropriate. some theorem-like environments may need to have their counters reset manually (e.g.\ if they are not numbered within sections in the main text). You can achieve this by using \verb"\numberwithin{remark}{section}" (for example) just after the \verb"\appendix" command.
+
+
+\appendix
+
+\section{Troubleshooting}
+
+Authors may occasionally encounter problems with the preparation of a manuscript using \LaTeX. The appropriate action to take will depend on the nature of the problem:
+\begin{enumerate}
+\item[(i)] If the problem is with \LaTeX\ itself, rather than with the actual macros, please consult an appropriate \LaTeXe\ manual for initial advice. If the solution cannot be found, or if you suspect that the problem does lie with the macros, then please contact Taylor \& Francis for assistance (\texttt{latex.helpdesk@tandf.co.uk}).
+\item[(ii)] Problems with page make-up (e.g.\ occasional overlong lines of text; figures or tables appearing out of order): please do not try to fix these using `hard' page make-up commands -- the typesetter will deal with such problems. (You may, if you wish, draw attention to particular problems when submitting the final version of your manuscript.)
+\item[(iii)] If a required font is not available on your system, allow \TeX\ to substitute the font and specify which font is required in a covering letter accompanying your files.
+\end{enumerate}
+
+
+\section{Obtaining the template and class file}
+
+\subsection{Via the Taylor \& Francis website}
+
+This article template and the \texttt{interact} class file may be obtained via the `Instructions for Authors' pages of selected Taylor \& Francis journals.
+
+Please note that the class file calls up the open-source \LaTeX\ packages booktabs.sty, epsfig.sty and rotating.sty, which will, for convenience, unpack with the downloaded template and class file. The template optionally calls for natbib.sty and subfigure.sty, which are also supplied for convenience.
+
+
+\subsection{Via e-mail}
+
+This article template, the \texttt{interact} class file and the associated open-source \LaTeX\ packages are also available via e-mail. Requests should be addressed to \texttt{latex.helpdesk@tandf.co.uk}, clearly stating for which journal you require the template and class file.
+
+\end{document}
